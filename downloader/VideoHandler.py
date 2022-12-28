@@ -9,10 +9,11 @@ from .VideoErrorHandler import VideoErrorhandler
 class Format:
     VIDEO :str = "VIDEO"
     AUDIO :str = "AUDIO"
+    
     def isFormat(self,type:str):
         if (type is self.AUDIO) or (type is self.VIDEO) : return True
-        else : return False
-        
+        else : return False 
+
 class AbsHandler(ABC):
     formatType :Format = Format()
     def __init__(self):
@@ -70,7 +71,7 @@ class Youtube(AbsHandler):
         while "audio" in listData[i]["mimeType"]:
             if (not audio or audioQuality.get(listData[i]["audioQuality"]) > audio[1]) and ( (self._type == self.formatType.VIDEO and format in listData[i]["mimeType"]) or (self._type == self.formatType.AUDIO) ) :
                 audio = (listData[i],audioQuality.get(listData[i]["audioQuality"]))    
-            if audio[1] == 2 : break
+            if audio and audio[1] == 2 : break
             i = i-1
         
         return audio[0]
@@ -118,7 +119,7 @@ class Youtube(AbsHandler):
         audio = self.__searchAudio(streamingData,format)
         return self.__checkCrypted(audio)
 
-    def __downloadVideo(self,videoQuality :int = 720) -> None:
+    def __downloadVideo(self,videoQuality :int = 1080) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
         if  str(videoQuality) not in videoAudio["quality"]:
@@ -144,7 +145,6 @@ class Youtube(AbsHandler):
             
         
     def download(self, url :str) -> None:
-        try :
             urlResponse = self._fetch(url)
             if urlResponse.ok:
                 self._body = urlResponse.text
@@ -152,8 +152,5 @@ class Youtube(AbsHandler):
                 if self._type is self.formatType.VIDEO : self.__downloadVideo() 
                 else : self.__downloadAudio()
             else : raise VideoErrorhandler("this url {0} is not responding / response code : {1}".format(url,urlResponse.status_code))
-        except VideoErrorhandler as e :
-            print(e.message)
-        except :
-            print("bad url: " + url)
+       
         
