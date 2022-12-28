@@ -1,4 +1,4 @@
-from downloader.VideoDownloader import  VideoDownloader
+from downloader import VideoDownloader
 def main():
     downloader = VideoDownloader()
     video = ["https://www.youtube.com/watch?v=7ushg6kQHiQ"]

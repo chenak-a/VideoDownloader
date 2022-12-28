@@ -16,4 +16,4 @@ class VideoDownloader:
         if domain == "youtube" :
             self.downloader = Youtube()
         else : return
-        self.downloader.download(url);
+        self.downloader.download(url)
