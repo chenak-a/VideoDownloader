@@ -107,21 +107,21 @@ class Youtube(AbsHandler):
             data["url"] = self.__decipherUrl(data["signatureCipher"])
         return data
         
-    def __getVideo(self,videoQuality :str,streamingStreamData :map) -> map:
-        video = self.__searchVideo(streamingStreamData,videoQuality)
+    def __getVideo(self,videoQuality :str,streamingData :map) -> map:
+        video = self.__searchVideo(streamingData,videoQuality)
         return  self.__checkCrypted(video)
 
-    def __getAudio(self,format :str,streamingStreamData :map):
-        audio = self.__searchAudio(streamingStreamData,format)
+    def __getAudio(self,format :str,streamingData :map):
+        audio = self.__searchAudio(streamingData,format)
         return self.__checkCrypted(audio)
 
     def __getVideoAudio(self,videoQuality :int = 720) -> map:
-        streamingStreamData = self.payload['streamingData']
-        videoAudio = self.__getVideo(videoQuality,streamingStreamData['formats'])
+        streamingData = self.payload['streamingData']
+        videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
         if  str(videoQuality) not in videoAudio["quality"]:
-            video = self.__getVideo(videoQuality,streamingStreamData['adaptiveFormats'])
+            video = self.__getVideo(videoQuality,streamingData['adaptiveFormats'])
             format = re.search(r'\/\w*',video['mimeType'])[0]
-            audio = self.__getAudio(format,streamingStreamData['adaptiveFormats'])
+            audio = self.__getAudio(format,streamingData['adaptiveFormats'])
             print(video)
             print(audio)
         print(videoAudio)
@@ -152,5 +152,5 @@ class Youtube(AbsHandler):
         except VideoErrorhandler as e :
             print(e.errors)
         except :
-            print("bad url: " +url)
+            print("bad url: " + url)
         
