@@ -6,7 +6,7 @@ import urllib.parse
 from requests import get , Response
 from .VideoErrorHandler import VideoErrorhandler
 
-class format:
+class Format:
     VIDEO :str = "VIDEO"
     AUDIO :str = "AUDIO"
     def isFormat(self,type:str):
@@ -14,7 +14,7 @@ class format:
         else : return False
         
 class AbsHandler(ABC):
-    formatType :format = format()
+    formatType :Format = Format()
     def __init__(self):
         self._Title :str = None
         self._type :str = self.formatType.VIDEO
@@ -86,7 +86,7 @@ class Youtube(AbsHandler):
         else :
             middle = len(videoList)//2
             videoQuality = re.search(r'\d*',videoList[middle]["qualityLabel"])[0]
-            if "qualityLabel" not in  videoList[middle] :return videoList[0]
+            if "video" not in  videoList[middle]["mimeType"] :return videoList[0]
             if quality == int(videoQuality) : return videoList[middle]
             elif middle == 0 : return videoList[middle]
             elif quality > int(videoQuality) :
