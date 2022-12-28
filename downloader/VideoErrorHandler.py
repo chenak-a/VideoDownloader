@@ -1,5 +1,5 @@
 class VideoErrorhandler(Exception):
     
-    def __init__(self, errors):                        
-        self.errors = errors
+    def __init__(self, message: str=""):                        
+        self.message = message
     

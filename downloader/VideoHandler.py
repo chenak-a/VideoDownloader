@@ -3,25 +3,26 @@ import re
 import js2py
 import json
 import urllib.parse
-import sys
 from requests import get , Response
 from .VideoErrorHandler import VideoErrorhandler
-class AbsHandler(ABC):
+
+class format:
     VIDEO :str = "VIDEO"
     AUDIO :str = "AUDIO"
+    def isFormat(self,type:str):
+        if (type is self.AUDIO) or (type is self.VIDEO) : return True
+        else : return False
+        
+class AbsHandler(ABC):
+    formatType :format = format()
     def __init__(self):
-        self.Title :str = None
-        self.urlVideoAudio :map = None
-        self.type :str = self.VIDEO
-        self.body :str = None
-        self.payload :map = None
+        self._Title :str = None
+        self._type :str = self.formatType.VIDEO
+        self._body :str = None
+        self._payload :map = None
     
     @abstractmethod
-    def getPayload(self)-> None:
-        pass
-    
-    @abstractmethod
-    def getSteamedData(self, body :str) -> None:
+    def setPayload(self)-> None:
         pass
     
     def _fetch(self, url :str) -> Response:
@@ -31,13 +32,17 @@ class AbsHandler(ABC):
     def download(self,url :str) -> None:
         pass
     
+    def setFormat(self,format:str):
+        if self.formatType.isFormat(format) : 
+            self._type = format
+            
 class Youtube(AbsHandler):
-
+    
     def __getCipherKey(self, jsBody :str) -> str:
         return re.search(r"[\{\d\w\(\)\\.\=\"]*?;(..\...\(.\,..?\)\;){3,}.*?}", jsBody)[0]
     
-    def __getCipherAlgorithm(self, functionName :str, body :str) -> str:
-        return re.search(r'var '+ functionName +'={.*(.|\s)*?}};',body)[0]
+    def __getCipherAlgorithm(self, functionName :str, jsBody :str) -> str:
+        return re.search(r'var '+ functionName +'={.*(.|\s)*?}};',jsBody)[0]
     
     def __getCipherFunctionName(self, cipherKey :str) -> str:
         functionVariable = re.search(r'\w*\.\w*\(a', cipherKey)[0]
@@ -51,20 +56,20 @@ class Youtube(AbsHandler):
         
     
     def __decription(self,data :str) -> str:
-        jsUrl = 'https://youtube.com/'+re.findall(r'"jsUrl":"(.*?)"', self.body)[0]
+        jsUrl = 'https://youtube.com/'+re.findall(r'"jsUrl":"(.*?)"', self._body)[0]
         jsBody = self._fetch(jsUrl).text
         cipherKey = self.__getCipherKey(jsBody)
         cipherFunctionName = self.__getCipherFunctionName(cipherKey)
         cipherAlgorithm = self.__getCipherAlgorithm(cipherFunctionName,jsBody)
         return self.__runJsScript(data,cipherKey,cipherAlgorithm)
     
-    def __searchAudio(self,listAudio :list,format:str = ""):
+    def __searchAudio(self,listData :list,format:str = ""):
         audio :tuple[map,int] = None
         audioQuality = {"AUDIO_QUALITY_LOW" : 0,"AUDIO_QUALITY_MEDIUM" : 1,"AUDIO_QUALITY_HIGH":2}
-        i = len(listAudio)-1
-        while "audio" in listAudio[i]["mimeType"]:
-            if (not audio or audioQuality.get(listAudio[i]["audioQuality"]) > audio[1]) and ( (self.type == self.VIDEO and format in listAudio[i]["mimeType"]) or (self.type == self.AUDIO) ) :
-                audio = (listAudio[i],audioQuality.get(listAudio[i]["audioQuality"]))    
+        i = len(listData)-1
+        while "audio" in listData[i]["mimeType"]:
+            if (not audio or audioQuality.get(listData[i]["audioQuality"]) > audio[1]) and ( (self._type == self.formatType.VIDEO and format in listData[i]["mimeType"]) or (self._type == self.formatType.AUDIO) ) :
+                audio = (listData[i],audioQuality.get(listData[i]["audioQuality"]))    
             if audio[1] == 2 : break
             i = i-1
         
@@ -76,23 +81,21 @@ class Youtube(AbsHandler):
         
     def __searchVideo(self,videoList :list,quality :int) -> map:
         if (videoList == []) or ( "qualityLabel" not in  videoList[0] )  :return
-        videoQualiry = re.search(r'\d*',videoList[0]["qualityLabel"])[0]
-        if quality == int(videoQualiry) : return videoList[0]
+        videoQuality = re.search(r'\d*',videoList[0]["qualityLabel"])[0]
+        if quality == int(videoQuality) : return videoList[0]
         else :
-            midel = len(videoList)//2
-            videoQualiry = re.search(r'\d*',videoList[midel]["qualityLabel"])[0]
-            if "qualityLabel" not in  videoList[midel] :return videoList[0]
-            if quality == int(videoQualiry) : return videoList[midel]
-            elif midel == 0 : return videoList[midel]
-            elif quality > int(videoQualiry) :
-                video = self.__searchVideo(videoList[1: midel-1],quality) 
+            middle = len(videoList)//2
+            videoQuality = re.search(r'\d*',videoList[middle]["qualityLabel"])[0]
+            if "qualityLabel" not in  videoList[middle] :return videoList[0]
+            if quality == int(videoQuality) : return videoList[middle]
+            elif middle == 0 : return videoList[middle]
+            elif quality > int(videoQuality) :
+                video = self.__searchVideo(videoList[1: middle-1],quality) 
                 return self.__defaultVideo(video,videoList[0])
             else :
-                video = self.__searchVideo(videoList[midel+1:],quality)
-                return self.__defaultVideo(video,videoList[midel])
+                video = self.__searchVideo(videoList[middle+1:],quality)
+                return self.__defaultVideo(video,videoList[middle])
             
-            
-           
     def __decipherUrl(self,url :str) -> str:
         urlSlice = re.split(r'&',url)
         key = urlSlice[0].replace("s=","")
@@ -115,8 +118,8 @@ class Youtube(AbsHandler):
         audio = self.__searchAudio(streamingData,format)
         return self.__checkCrypted(audio)
 
-    def __getVideoAudio(self,videoQuality :int = 720) -> map:
-        streamingData = self.payload['streamingData']
+    def __downloadVideo(self,videoQuality :int = 720) -> None:
+        streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
         if  str(videoQuality) not in videoAudio["quality"]:
             video = self.__getVideo(videoQuality,streamingData['adaptiveFormats'])
@@ -124,33 +127,33 @@ class Youtube(AbsHandler):
             audio = self.__getAudio(format,streamingData['adaptiveFormats'])
             print(video)
             print(audio)
-        print(videoAudio)
-    
-    def getPayload(self) -> None:
+        else: print(videoAudio)
+        
+    def __downloadAudio(self) -> None:
+        streamingData = self._payload['streamingData']
+        audio = self.__getAudio(format,streamingData['adaptiveFormats'])
+        print(audio)
+        
+    def setPayload(self) -> None:
         try :
-            data = re.search(r'var ytInitialPlayerResponse = \{.*\}',self.body)[0]
-            payloead = data.replace("var ytInitialPlayerResponse = ","")
-            self.payload = json.loads(payloead)
+            data = re.search(r'var ytInitialPlayerResponse = \{.*\}',self._body)[0]
+            payload = data.replace("var ytInitialPlayerResponse = ","")
+            self._payload = json.loads(payload)
         except:
             raise VideoErrorhandler("this url doesn't contain a video")
             
-    
-    def getSteamedData(self) -> None:
-        self.getPayload()
-        if self.type is self.VIDEO :
-            self.__getVideoAudio()
-        
-    
         
     def download(self, url :str) -> None:
         try :
-            urlRespose = self._fetch(url)
-            if urlRespose.status_code == 200:
-                self.body = urlRespose.text
-                self.getSteamedData()     
-            else : raise VideoErrorhandler("this url {0} is not responding response code : {1}".format(url,urlRespose.status_code))
+            urlResponse = self._fetch(url)
+            if urlResponse.ok:
+                self._body = urlResponse.text
+                self.setPayload()
+                if self._type is self.formatType.VIDEO : self.__downloadVideo() 
+                else : self.__downloadAudio()
+            else : raise VideoErrorhandler("this url {0} is not responding / response code : {1}".format(url,urlResponse.status_code))
         except VideoErrorhandler as e :
-            print(e.errors)
+            print(e.message)
         except :
             print("bad url: " + url)
         
