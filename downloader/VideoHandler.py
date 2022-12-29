@@ -3,9 +3,11 @@ import re
 import js2py
 import json
 import urllib.parse
+from alive_progress import alive_bar
 from requests import get , Response
 from .VideoErrorHandler import VideoErrorhandler
 
+from time import sleep
 class Format:
     VIDEO :str = "VIDEO"
     AUDIO :str = "AUDIO"
@@ -26,8 +28,8 @@ class AbsHandler(ABC):
     def setPayload(self)-> None:
         pass
     
-    def _fetch(self, url :str) -> Response:
-        return get(url)    
+    def _fetch(self, url :str,**kwargs) -> Response:
+        return get(url,kwargs)    
         
     @abstractmethod
     def download(self,url :str) -> None:
@@ -79,7 +81,7 @@ class Youtube(AbsHandler):
     def __defaultVideo(self,foundVideo:map,defaultVideo:map) -> map:
         if foundVideo : return foundVideo
         else : return defaultVideo
-        
+
     def __searchVideo(self,videoList :list,quality :int) -> map:
         if (videoList == []) or ( "qualityLabel" not in  videoList[0] )  :return
         videoQuality = re.search(r'\d*',videoList[0]["qualityLabel"])[0]
@@ -119,16 +121,43 @@ class Youtube(AbsHandler):
         audio = self.__searchAudio(streamingData,format)
         return self.__checkCrypted(audio)
 
-    def __downloadVideo(self,videoQuality :int = 1080) -> None:
+    def __saveFile(self,data:str):
+        title = "abbb"
+        format = re.search(r'\/\w*',data['mimeType'])[0]
+        fileType = format.replace("/", ".")
+        value = None
+        while True :
+            value = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+                                                           ,"Connection": "Keep-Alive",
+                                                           "Upgrade-Insecure-Requests": "1",
+                                                           "sec-ch-ua-platform": "Windows",
+                                                           "Cache-Control": "no-store"})
+            if value.ok : break
+            else : 
+                print(value.status_code)
+                sleep(5)
+        size = int(value.headers["Content-Length"])
+        with open(self._Title+fileType, "wb") as binary_file:
+            with alive_bar(size, title=self._Title) as bar:
+                for a in value.iter_content():
+                    try :
+                        binary_file.write(a)
+                        bar("{:.2f}".format(binary_file.tell()/int(value.headers["Content-Length"])))
+                        bar.text = "Installing {0}".format(self._Title)
+                    except:
+                        pass
+            binary_file.close()
+            value.close()
+    def __downloadVideo(self,videoQuality :int) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
-        if  str(videoQuality) not in videoAudio["quality"]:
+        if  str(videoQuality) not in videoAudio["qualityLabel"]:
             video = self.__getVideo(videoQuality,streamingData['adaptiveFormats'])
             format = re.search(r'\/\w*',video['mimeType'])[0]
             audio = self.__getAudio(format,streamingData['adaptiveFormats'])
             print(video)
             print(audio)
-        else: print(videoAudio)
+        else: self.__saveFile(videoAudio)
         
     def __downloadAudio(self) -> None:
         streamingData = self._payload['streamingData']
@@ -143,14 +172,23 @@ class Youtube(AbsHandler):
         except:
             raise VideoErrorhandler("this url doesn't contain a video")
             
-        
-    def download(self, url :str) -> None:
+    def videoTitle(self) -> None:
+        try:
+            self._Title = self._payload["videoDetails"]["title"]
+        except :
+            raise VideoErrorhandler("we couldn't find video title")
+    def download(self, url :str,qualityVideo :int = 360) -> None:
+        try :
             urlResponse = self._fetch(url)
             if urlResponse.ok:
                 self._body = urlResponse.text
                 self.setPayload()
-                if self._type is self.formatType.VIDEO : self.__downloadVideo() 
+                self.videoTitle()
+                if self._type is self.formatType.VIDEO : self.__downloadVideo(qualityVideo) 
                 else : self.__downloadAudio()
             else : raise VideoErrorhandler("this url {0} is not responding / response code : {1}".format(url,urlResponse.status_code))
-       
+        except VideoErrorhandler as e :
+            print(e.message)
+        except :
+            print("Video Errorhandler raised exception")            
         
