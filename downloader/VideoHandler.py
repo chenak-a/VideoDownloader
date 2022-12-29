@@ -19,6 +19,7 @@ class Format:
 class AbsHandler(ABC):
     formatType :Format = Format()
     _requestTry :int = 0
+    MAXTRY = 5
     def __init__(self):
         self._Title :str = None
         self._type :str = self.formatType.VIDEO
@@ -134,7 +135,7 @@ class Youtube(AbsHandler):
             errMessage = "response code / {0} couldn't access to the video will try {1} again ...".format(str(response.status_code),self._requestTry)
             raise VideoErrorhandler(errMessage,True)
         size = int(response.headers["Content-Length"])
-        with open("./video/"+self._Title+fileType, "wb") as binary_file:
+        with open("./{0}/".format(self._type.lower()) + self._Title+ fileType, "wb") as binary_file:
             with alive_bar(size, title=self._Title) as bar:
                 for a in response.iter_content():
                     try :
@@ -145,6 +146,7 @@ class Youtube(AbsHandler):
                         pass
             binary_file.close()
             response.close()
+            
     def __downloadVideo(self,videoQuality :int) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
@@ -159,7 +161,7 @@ class Youtube(AbsHandler):
     def __downloadAudio(self) -> None:
         streamingData = self._payload['streamingData']
         audio = self.__getAudio(format,streamingData['adaptiveFormats'])
-        print(audio)
+        self.__saveFile(audio)
         
     def setPayload(self) -> None:
         try :
@@ -186,7 +188,7 @@ class Youtube(AbsHandler):
             else : raise VideoErrorhandler("this url {0} is not responding / response code : {1}".format(url,urlResponse.status_code))
         except VideoErrorhandler as e :
             print(e.message)
-            if e.reset and self._requestTry < 6 : 
+            if e.reset and self._requestTry <= self.MAXTRY : 
                 sleep(5)
                 self._requestTry += 1
                 self.download(url,qualityVideo)

@@ -2,3 +2,4 @@
 downloader/__pycache__
 .vscode
 video/*
+audio/*
