@@ -18,6 +18,7 @@ class Format:
 
 class AbsHandler(ABC):
     formatType :Format = Format()
+    _requestTry :int = 0
     def __init__(self):
         self._Title :str = None
         self._type :str = self.formatType.VIDEO
@@ -40,7 +41,7 @@ class AbsHandler(ABC):
             self._type = format
             
 class Youtube(AbsHandler):
-    
+        
     def __getCipherKey(self, jsBody :str) -> str:
         return re.search(r"[\{\d\w\(\)\\.\=\"]*?;(..\...\(.\,..?\)\;){3,}.*?}", jsBody)[0]
     
@@ -122,32 +123,28 @@ class Youtube(AbsHandler):
         return self.__checkCrypted(audio)
 
     def __saveFile(self,data:str):
-        title = "abbb"
         format = re.search(r'\/\w*',data['mimeType'])[0]
-        fileType = format.replace("/", ".")
-        value = None
-        while True :
-            value = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-                                                           ,"Connection": "Keep-Alive",
-                                                           "Upgrade-Insecure-Requests": "1",
-                                                           "sec-ch-ua-platform": "Windows",
-                                                           "Cache-Control": "no-store"})
-            if value.ok : break
-            else : 
-                print(value.status_code)
-                sleep(5)
-        size = int(value.headers["Content-Length"])
-        with open(self._Title+fileType, "wb") as binary_file:
+        fileType = format.replace("/", ".")       
+        response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+                                                       ,"Connection": "Keep-Alive",
+                                                       "Upgrade-Insecure-Requests": "1",
+                                                       "sec-ch-ua-platform": "Windows",
+                                                       "Cache-Control": "no-store"})
+        if not response.ok : 
+            errMessage = "response code / {0} couldn't access to the video will try {1} again ...".format(str(response.status_code),self._requestTry)
+            raise VideoErrorhandler(errMessage,True)
+        size = int(response.headers["Content-Length"])
+        with open("./video/"+self._Title+fileType, "wb") as binary_file:
             with alive_bar(size, title=self._Title) as bar:
-                for a in value.iter_content():
+                for a in response.iter_content():
                     try :
                         binary_file.write(a)
-                        bar("{:.2f}".format(binary_file.tell()/int(value.headers["Content-Length"])))
+                        bar("{:.2f}".format(binary_file.tell()/int(response.headers["Content-Length"])))
                         bar.text = "Installing {0}".format(self._Title)
                     except:
                         pass
             binary_file.close()
-            value.close()
+            response.close()
     def __downloadVideo(self,videoQuality :int) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
@@ -189,6 +186,11 @@ class Youtube(AbsHandler):
             else : raise VideoErrorhandler("this url {0} is not responding / response code : {1}".format(url,urlResponse.status_code))
         except VideoErrorhandler as e :
             print(e.message)
-        except :
-            print("Video Errorhandler raised exception")            
+            if e.reset and self._requestTry < 6 : 
+                sleep(5)
+                self._requestTry += 1
+                self.download(url,qualityVideo)
+            else : print("we couldn't download {0} try agin later".format(self._Title))
+        except:
+            print("Error downloading")
         

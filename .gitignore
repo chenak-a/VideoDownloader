@@ -1,2 +1,4 @@
 .venv
 downloader/__pycache__
+.vscode
+video/*
