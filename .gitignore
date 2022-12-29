@@ -3,5 +3,3 @@ downloader/__pycache__
 .vscode
 video/*
 audio/*
-!audio
-!video
