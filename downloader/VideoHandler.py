@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from math import ceil
 from multiprocessing.sharedctypes import synchronized
 import re
 import js2py
 import json
 import urllib.parse
-from requests import get , Response
+from requests import get, head, Response
 from .VideoErrorHandler import VideoErrorhandler
 from time import sleep
 import os
@@ -22,11 +24,14 @@ class Format:
 class AbsHandler(ABC):
   
     formatType :Format = Format()
-    
+    # HTTP use IP/TCP connection average head size is 8kB we want the head size to be 5% of the package so 72KB of data will do the job   
+    BUFFERMIN = 72000
     MAXTRY = 15
+    TREADSIZE = 32
     
     def __init__(self):
         self._Title :str = None
+        self._filetype :str = None
         self._type :str = self.formatType.VIDEO
         self._body :str = None
         self._payload :map = None
@@ -51,7 +56,7 @@ class AbsHandler(ABC):
         
     @abstractmethod
     def download(self,url :str) -> None:
-        """ download request from url
+        """ download video or audio from url
 
         Args:
             url (str): url
@@ -103,7 +108,6 @@ class Youtube(AbsHandler):
                 audio = (listData[i],audioQuality.get(listData[i]["audioQuality"]))    
             if audio and audio[1] == 2 : break
             i = i-1
-        
         return audio[0]
     
     def __defaultVideo(self,foundVideo:map,defaultVideo:map) -> map:
@@ -154,33 +158,69 @@ class Youtube(AbsHandler):
         if not os.path.exists(path):
             os.mkdir(path)
     
-    def __saveFile(self,data:str):
-        format = re.search(r'\/\w*',data['mimeType'])[0]
-        fileType = format.replace("/", ".")       
+    def __fileType(self,data:str):
+            format = re.search(r'\/\w*',data['mimeType'])[0]
+            self._filetype = format.replace("/", ".")  
+        
+    def writeFile(self,listdata) -> None:
+        with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "ab") as binary_file:
+            binary_file.seek(listdata[1])
+            binary_file.writelines(listdata[0])
+        binary_file.close()
+        
+    def downloadSlices(self,data:str,start :int,end :int) -> list:
+        bytelist = []
         response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
                                                        "Upgrade-Insecure-Requests": "1",
                                                        "sec-ch-ua-platform": "Windows",
-                                                       "Cache-Control": "no-store"})
-        if not response.ok : 
-            errMessage = "response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title)
-            raise VideoErrorhandler(errMessage)
-        
-        size = int(response.headers["Content-Length"])
+                                                       "Cache-Control": "no-store",
+                                                       "Range":"bytes={0}-{1}".format(str(start), str(end))})
+        if response.ok:
+            for byte in response.iter_content():
+                try :
+                    bytelist.append(byte)
+                except:
+                    pass
+        else : raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
+        return bytelist,start
+    
+    def checkServerConnection(self,data:str):
+        response = head(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+                                                       ,"Connection": "Keep-Alive",
+                                                       "Upgrade-Insecure-Requests": "1",
+                                                       "sec-ch-ua-platform": "Windows",
+                                                       "Cache-Control": "no-store",
+                                                       "Range":"bytes=0-0"})
+        if not response.ok:
+            raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
+        print("connected")
+
+    def getIncrement(self,size:int,increment:int):
+        start = 0
+        end = 0
+        while size > end :
+            result = end + increment
+            if result > size : end = size
+            else : end = result
+            yield start,end
+            start = end + 1
+    
+    def __saveFile(self,data:str):    
+        self.__fileType(data)
+        self.checkServerConnection(data)
         self.__checkDirectory(self._type.lower())
-        
-        with open("{0}/".format(self._type.lower()) + self._Title + fileType, "wb") as binary_file:
-            with tqdm(total=size, desc=self._Title, unit='iB', unit_scale=True) as bar:
-                for a in response.iter_content():
-                    try :
-                        binary_file.write(a)
-                        bar.update(len(a))
-                    except:
-                        pass
-            bar.close()
-        binary_file.close()
-        response.close()
-            
+        size = int(data["contentLength"])
+        increment = ceil(int(data["contentLength"])/self.TREADSIZE)
+        if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
+        with tqdm(total=size, desc=self._Title[:25], unit='iB', unit_scale=True) as bar: 
+            with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
+                for start, end in self.getIncrement(size,increment):
+                    result  = executor.submit(self.downloadSlices,data,start,end)
+                    output = result.result()
+                    self.writeFile(output)
+                    bar.update(len(output[0]))
+      
     def __downloadVideo(self,videoQuality :int) -> None:
         
         streamingData = self._payload['streamingData']
@@ -230,11 +270,10 @@ class Youtube(AbsHandler):
             except  VideoErrorhandler as e  :
                 if self._try <= self.MAXTRY : 
                     print(e.message)
-                    sleep(5)
                     self._try += 1
+                    sleep(5)
                 else : 
                     print("we couldn't download {0} try agin later".format(self._Title))
                     break
-            except  :
-               print("an error occurred")
+            
    
