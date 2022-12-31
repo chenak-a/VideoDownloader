@@ -1,10 +1,16 @@
 from abc import ABC, abstractmethod
+from asyncio import Lock
+from concurrent.futures import ThreadPoolExecutor
+from math import ceil
 from multiprocessing.sharedctypes import synchronized
+import random
 import re
+import sys
+import threading
 import js2py
 import json
 import urllib.parse
-from requests import get , Response
+from requests import get, head, Response
 from .VideoErrorHandler import VideoErrorhandler
 from time import sleep
 import os
@@ -22,11 +28,15 @@ class Format:
 class AbsHandler(ABC):
   
     formatType :Format = Format()
-    
+    # HTTP use IP/TCP connection average head size is 8kB we want the head size to be 5% of the package so 72KB of data will do the job   
+    BUFFERMIN = 152000
     MAXTRY = 15
+    TREADSIZE = 50
+    SLICE = 1024
     
     def __init__(self):
         self._Title :str = None
+        self._filetype :str = None
         self._type :str = self.formatType.VIDEO
         self._body :str = None
         self._payload :map = None
@@ -51,7 +61,7 @@ class AbsHandler(ABC):
         
     @abstractmethod
     def download(self,url :str) -> None:
-        """ download request from url
+        """ download video or audio from url
 
         Args:
             url (str): url
@@ -103,7 +113,6 @@ class Youtube(AbsHandler):
                 audio = (listData[i],audioQuality.get(listData[i]["audioQuality"]))    
             if audio and audio[1] == 2 : break
             i = i-1
-        
         return audio[0]
     
     def __defaultVideo(self,foundVideo:map,defaultVideo:map) -> map:
@@ -154,35 +163,92 @@ class Youtube(AbsHandler):
         if not os.path.exists(path):
             os.mkdir(path)
     
-    def __saveFile(self,data:str):
-        format = re.search(r'\/\w*',data['mimeType'])[0]
-        fileType = format.replace("/", ".")       
+    def __fileType(self,data:str):
+            format = re.search(r'\/\w*',data['mimeType'])[0]
+            self._filetype = format.replace("/", ".")  
+        
+    def writeFile(self,listdata) -> None:
+        with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "wb") as binary_file:
+            binary_file.seek(listdata[1])
+            binary_file.writelines(listdata[0])
+        binary_file.close()
+        
+    def downloadSlices(self,data:str,start :int,end :int,bar:tqdm,lock:Lock) -> list:
         response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
                                                        "Upgrade-Insecure-Requests": "1",
                                                        "sec-ch-ua-platform": "Windows",
-                                                       "Cache-Control": "no-store"})
-        if not response.ok : 
-            errMessage = "response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title)
-            raise VideoErrorhandler(errMessage)
-        
-        size = int(response.headers["Content-Length"])
-        self.__checkDirectory(self._type.lower())
-        
-        with open("{0}/".format(self._type.lower()) + self._Title + fileType, "wb") as binary_file:
-            with tqdm(total=size, desc=self._Title, unit='iB', unit_scale=True) as bar:
-                for a in response.iter_content():
-                    try :
-                        binary_file.write(a)
-                        bar.update(len(a))
+                                                       "Cache-Control": "no-store",
+                                                       "Range":"bytes={0}-{1}".format(str(start), str(end))})
+        if response.ok:
+            with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "r+b") as binary_file:
+                binary_file.seek(start,1)
+                for byte in response.iter_content(end-start):
+                    try : 
+                        value = binary_file.write(byte)
+                        with lock :
+                            bar.update(value)
                     except:
+                        print("Error: Could not write")
                         pass
-            bar.close()
-        binary_file.close()
-        response.close()
-            
-    def __downloadVideo(self,videoQuality :int) -> None:
+                bar.update(end-start)
+        else : raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
         
+    def checkServerConnection(self,data:str)->int:
+        response = head(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+                                                       ,"Connection": "Keep-Alive",
+                                                       "Upgrade-Insecure-Requests": "1",
+                                                       "sec-ch-ua-platform": "Windows",
+                                                       "Cache-Control": "no-store",
+                                                       "Range":"bytes=0-"})
+        
+        if not response.ok:
+            raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
+        print("Connected to video server {1} : {0} ".format(self._Title,u'\U0001F680'))
+        return int(response.headers["Content-Length"])
+    
+    def createFile(self,size:int):
+        with open("{0}/".format(self._type.lower())  + self._Title + self._filetype, "wb") as out:
+            out.truncate(size)
+    
+    def getIncrement(self,size:int,increment:int):
+        start = 0
+        end = 0
+        while size > end :
+            result = end + increment
+            if result > size : end = size
+            else : end = result
+            yield start,end
+            start = end + 1
+            
+    def getEmoji(self):
+        emoji = [u'\U0001F680',u'\U0001F311',u'\U0001F312',u'\U0001F315',u'\U0001F31A',u'\U0001FA90',u'\U0001F30C',u'\U0001F32A',u'\U000026F1',
+                 u'\U000026A1',u'\U0001F525',u'\U0001F3AF',u'\U0001F3AE']
+        return emoji[random.randint(0,len(emoji))]
+    
+    def __saveFile(self,data:str):  
+            self.__fileType(data)
+            size =self.checkServerConnection(data)
+            self.__checkDirectory(self._type.lower())
+
+            self.createFile(size)
+
+            increment = ceil(size/self.SLICE)
+            if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
+            lock = threading.Lock()
+            with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
+                with tqdm(total=size, desc=self._Title[:25],leave=False ,unit='iB', unit_scale=True) as bar:
+                    for start, end in self.getIncrement(size,increment):
+                        result  = executor.submit(self.downloadSlices,data,start,end,bar,lock)
+                    result.result()
+                bar.close()
+
+            print('Downloaded successful enjoy {1} : {0} '.format(self._Title,self.getEmoji()))
+        
+            
+           
+    
+    def __downloadVideo(self,videoQuality :int) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
         if  str(videoQuality) not in videoAudio["qualityLabel"]:
@@ -230,11 +296,11 @@ class Youtube(AbsHandler):
             except  VideoErrorhandler as e  :
                 if self._try <= self.MAXTRY : 
                     print(e.message)
-                    sleep(5)
                     self._try += 1
+                    sleep(5)
                 else : 
                     print("we couldn't download {0} try agin later".format(self._Title))
                     break
-            except  :
-               print("an error occurred")
+            except Exception as e :
+                print(e)
    
