@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 from multiprocessing.sharedctypes import synchronized
 import re
+import sys
+import threading
 import js2py
 import json
 import urllib.parse
@@ -163,13 +165,12 @@ class Youtube(AbsHandler):
             self._filetype = format.replace("/", ".")  
         
     def writeFile(self,listdata) -> None:
-        with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "ab") as binary_file:
+        with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "wb") as binary_file:
             binary_file.seek(listdata[1])
             binary_file.writelines(listdata[0])
         binary_file.close()
         
-    def downloadSlices(self,data:str,start :int,end :int) -> list:
-        bytelist = []
+    def downloadSlices(self,data:str,start :int,end :int,bar) -> list:
         response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
                                                        "Upgrade-Insecure-Requests": "1",
@@ -177,14 +178,16 @@ class Youtube(AbsHandler):
                                                        "Cache-Control": "no-store",
                                                        "Range":"bytes={0}-{1}".format(str(start), str(end))})
         if response.ok:
-            for byte in response.iter_content():
-                try :
-                    bytelist.append(byte)
-                except:
-                    pass
+            with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "r+b") as binary_file:
+                binary_file.seek(start,1)
+                for byte in response.iter_content(end-start):
+                    try : 
+                        value = binary_file.write(byte)
+                        bar.update(value)
+                    except:
+                        print("Error: Could not write")
+                        pass
         else : raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
-        return bytelist,start
-    
     def checkServerConnection(self,data:str):
         response = head(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
@@ -206,21 +209,26 @@ class Youtube(AbsHandler):
             yield start,end
             start = end + 1
     
-    def __saveFile(self,data:str):    
+    def __saveFile(self,data:str):  
+    
+        
         self.__fileType(data)
         self.checkServerConnection(data)
         self.__checkDirectory(self._type.lower())
+        
+        print(data)
         size = int(data["contentLength"])
-        increment = ceil(int(data["contentLength"])/self.TREADSIZE)
+        with open("{0}/".format(self._type.lower())  + self._Title + self._filetype, "wb") as out:
+            out.truncate(size)
+        increment = ceil(int(data["contentLength"])/1024)
         if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
-        with tqdm(total=size, desc=self._Title[:25], unit='iB', unit_scale=True) as bar: 
-            with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
+        with ThreadPoolExecutor(max_workers=32) as executor:
+            with tqdm(total=size, desc=self._Title[:25], unit='iB', unit_scale=True) as bar:
+               
                 for start, end in self.getIncrement(size,increment):
-                    result  = executor.submit(self.downloadSlices,data,start,end)
-                    output = result.result()
-                    self.writeFile(output)
-                    bar.update(len(output[0]))
-      
+                    result  = executor.submit(self.downloadSlices,data,start,end,bar)
+                print(result.result())
+              
     def __downloadVideo(self,videoQuality :int) -> None:
         
         streamingData = self._payload['streamingData']
