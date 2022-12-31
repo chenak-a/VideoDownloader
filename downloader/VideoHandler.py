@@ -28,7 +28,7 @@ class Format:
 class AbsHandler(ABC):
   
     formatType :Format = Format()
-    # HTTP use IP/TCP connection average head size is 8kB we want the head size to be 5% of the package so 72KB of data will do the job   
+    # HTTP use IP/TCP connection average head size is 8kB we want the head size to be 5% of the package so 152KB of data will do the job   
     BUFFERMIN = 152000
     MAXTRY = 15
     TREADSIZE = 50
