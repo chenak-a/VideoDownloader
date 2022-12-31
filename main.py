@@ -1,13 +1,25 @@
 from itertools import repeat
 from downloader import VideoDownloader , Format
 import concurrent.futures
+
+class Downloader :
+    TYPE = Format()
+    
+    def __init__(self) -> None:
+        self.downloader = VideoDownloader()
+        self.threadPool = 5
+    
+    def run(self,listVideo:list,type:str):
+        with concurrent.futures.ThreadPoolExecutor(max_workers = self.threadPool) as executor:
+            executor.map(self.downloader.downloadVideo,listVideo,repeat(type))
+        
 def main():
-    type = Format()
-    downloader = VideoDownloader()
-    threadPool = 5
+    downloader = Downloader()
     video = ["https://www.youtube.com/watch?v=U0cfJJupyGc&ab_channel=Ar-RahmanTv","https://www.youtube.com/watch?v=nlYCyGaXPW0&ab_channel=UnMusulman"]
-    with concurrent.futures.ThreadPoolExecutor(max_workers = threadPool) as executor:
-        executor.map(downloader.downloadVideo,video,repeat(type.VIDEO))
+    
+    downloader.run(video,downloader.TYPE.VIDEO)
+    
+    
 
 if __name__ == '__main__':
     main()

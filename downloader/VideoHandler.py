@@ -5,7 +5,6 @@ from math import ceil
 from multiprocessing.sharedctypes import synchronized
 import random
 import re
-import sys
 import threading
 import js2py
 import json
