@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from asyncio import Lock
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 from multiprocessing.sharedctypes import synchronized
+import random
 import re
 import sys
 import threading
@@ -27,9 +29,10 @@ class AbsHandler(ABC):
   
     formatType :Format = Format()
     # HTTP use IP/TCP connection average head size is 8kB we want the head size to be 5% of the package so 72KB of data will do the job   
-    BUFFERMIN = 72000
+    BUFFERMIN = 152000
     MAXTRY = 15
-    TREADSIZE = 32
+    TREADSIZE = 50
+    SLICE = 1024
     
     def __init__(self):
         self._Title :str = None
@@ -170,7 +173,7 @@ class Youtube(AbsHandler):
             binary_file.writelines(listdata[0])
         binary_file.close()
         
-    def downloadSlices(self,data:str,start :int,end :int,bar) -> list:
+    def downloadSlices(self,data:str,start :int,end :int,bar:tqdm,lock:Lock) -> list:
         response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
                                                        "Upgrade-Insecure-Requests": "1",
@@ -183,22 +186,31 @@ class Youtube(AbsHandler):
                 for byte in response.iter_content(end-start):
                     try : 
                         value = binary_file.write(byte)
-                        bar.update(value)
+                        with lock :
+                            bar.update(value)
                     except:
                         print("Error: Could not write")
                         pass
+                bar.update(end-start)
         else : raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
-    def checkServerConnection(self,data:str):
+        
+    def checkServerConnection(self,data:str)->int:
         response = head(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
                                                        ,"Connection": "Keep-Alive",
                                                        "Upgrade-Insecure-Requests": "1",
                                                        "sec-ch-ua-platform": "Windows",
                                                        "Cache-Control": "no-store",
-                                                       "Range":"bytes=0-0"})
+                                                       "Range":"bytes=0-"})
+        
         if not response.ok:
             raise VideoErrorhandler("response code / {0} couldn't access to this video {2} will try {1} again ...".format(str(response.status_code),self._try,self._Title))
-        print("connected")
-
+        print("Connected to video server {1} : {0} ".format(self._Title,u'\U0001F680'))
+        return int(response.headers["Content-Length"])
+    
+    def createFile(self,size:int):
+        with open("{0}/".format(self._type.lower())  + self._Title + self._filetype, "wb") as out:
+            out.truncate(size)
+    
     def getIncrement(self,size:int,increment:int):
         start = 0
         end = 0
@@ -208,29 +220,35 @@ class Youtube(AbsHandler):
             else : end = result
             yield start,end
             start = end + 1
+            
+    def getEmoji(self):
+        emoji = [u'\U0001F680',u'\U0001F311',u'\U0001F312',u'\U0001F315',u'\U0001F31A',u'\U0001FA90',u'\U0001F30C',u'\U0001F32A',u'\U000026F1',
+                 u'\U000026A1',u'\U0001F525',u'\U0001F3AF',u'\U0001F3AE']
+        return emoji[random.randint(0,len(emoji))]
     
     def __saveFile(self,data:str):  
+            self.__fileType(data)
+            size =self.checkServerConnection(data)
+            self.__checkDirectory(self._type.lower())
+
+            self.createFile(size)
+
+            increment = ceil(size/self.SLICE)
+            if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
+            lock = threading.Lock()
+            with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
+                with tqdm(total=size, desc=self._Title[:25],leave=False ,unit='iB', unit_scale=True) as bar:
+                    for start, end in self.getIncrement(size,increment):
+                        result  = executor.submit(self.downloadSlices,data,start,end,bar,lock)
+                    result.result()
+                bar.close()
+
+            print('Downloaded successful enjoy {1} : {0} '.format(self._Title,self.getEmoji()))
+        
+            
+           
     
-        
-        self.__fileType(data)
-        self.checkServerConnection(data)
-        self.__checkDirectory(self._type.lower())
-        
-        print(data)
-        size = int(data["contentLength"])
-        with open("{0}/".format(self._type.lower())  + self._Title + self._filetype, "wb") as out:
-            out.truncate(size)
-        increment = ceil(int(data["contentLength"])/1024)
-        if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            with tqdm(total=size, desc=self._Title[:25], unit='iB', unit_scale=True) as bar:
-               
-                for start, end in self.getIncrement(size,increment):
-                    result  = executor.submit(self.downloadSlices,data,start,end,bar)
-                print(result.result())
-              
     def __downloadVideo(self,videoQuality :int) -> None:
-        
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
         if  str(videoQuality) not in videoAudio["qualityLabel"]:
@@ -283,5 +301,6 @@ class Youtube(AbsHandler):
                 else : 
                     print("we couldn't download {0} try agin later".format(self._Title))
                     break
-            
+            except Exception as e :
+                print(e)
    
