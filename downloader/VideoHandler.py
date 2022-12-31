@@ -157,20 +157,14 @@ class Youtube(AbsHandler):
         audio = self.__searchAudio(streamingData,format)
         return self.__checkCrypted(audio)
     
-    def __checkDirectory(self,directory:str) -> None:
-        path = os.path.join("", directory)
+    def __checkDirectory(self) -> None:
+        path = os.path.join("", self._type.lower())
         if not os.path.exists(path):
             os.mkdir(path)
     
     def __fileType(self,data:str):
             format = re.search(r'\/\w*',data['mimeType'])[0]
             self._filetype = format.replace("/", ".")  
-        
-    def writeFile(self,listdata) -> None:
-        with open("{0}/".format(self._type.lower()) + self._Title + self._filetype, "wb") as binary_file:
-            binary_file.seek(listdata[1])
-            binary_file.writelines(listdata[0])
-        binary_file.close()
         
     def downloadSlices(self,data:str,start :int,end :int,bar:tqdm,lock:Lock) -> list:
         response = get(data["url"],stream = True,headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
@@ -225,28 +219,29 @@ class Youtube(AbsHandler):
                  u'\U000026A1',u'\U0001F525',u'\U0001F3AF',u'\U0001F3AE']
         return emoji[random.randint(0,len(emoji))]
     
+    def checkFileExist(self):
+        path = os.path.join(self._type.lower(),  self._Title + self._filetype)
+        return os.path.exists(path)
+        
+    
     def __saveFile(self,data:str):  
             self.__fileType(data)
-            size =self.checkServerConnection(data)
-            self.__checkDirectory(self._type.lower())
+            if self.checkFileExist() : print("this video is already installed 💾 : " + self._Title[:30])
+            else :
+                size =self.checkServerConnection(data)
+                self.__checkDirectory() 
+                self.createFile(size)   
+                increment = ceil(size/self.SLICE)
+                if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
+                lock = threading.Lock()
+                with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
+                    with tqdm(total=size, desc=self._Title[:25],leave=False ,unit='iB', unit_scale=True) as bar:
+                        for start, end in self.getIncrement(size,increment):
+                            result  = executor.submit(self.downloadSlices,data,start,end,bar,lock)
+                        result.result()
+                    bar.close() 
+                print('Downloaded successful enjoy {1} : {0} '.format(self._Title,self.getEmoji())) 
 
-            self.createFile(size)
-
-            increment = ceil(size/self.SLICE)
-            if increment < self.BUFFERMIN : increment = self.BUFFERMIN 
-            lock = threading.Lock()
-            with ThreadPoolExecutor(max_workers=self.TREADSIZE) as executor:
-                with tqdm(total=size, desc=self._Title[:25],leave=False ,unit='iB', unit_scale=True) as bar:
-                    for start, end in self.getIncrement(size,increment):
-                        result  = executor.submit(self.downloadSlices,data,start,end,bar,lock)
-                    result.result()
-                bar.close()
-
-            print('Downloaded successful enjoy {1} : {0} '.format(self._Title,self.getEmoji()))
-        
-            
-           
-    
     def __downloadVideo(self,videoQuality :int) -> None:
         streamingData = self._payload['streamingData']
         videoAudio = self.__getVideo(videoQuality,streamingData['formats'])
