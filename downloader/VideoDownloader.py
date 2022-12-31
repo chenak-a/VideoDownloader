@@ -1,6 +1,4 @@
-import urllib.request
 from .VideoHandler import AbsHandler , Youtube
-
 import re
 class VideoDownloader:
     
