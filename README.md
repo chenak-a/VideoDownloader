@@ -3,7 +3,7 @@
 
 	
 
-<img src = "https://github.githubassets.com/images/mona-loading-dark.gif" height=20/> VideoDownloader is an open source project created to install video or audio from different site 
+<img src = "https://33.media.tumblr.com/dc2b2cfd05dd7eb505f07eab3b6301cc/tumblr_nfp6gbkPcb1so5odzo1_500.gif" height=20/> VideoDownloader is an open source project created to install video or audio from different site 
 
 ## :hammer_and_wrench: Installation 
 
