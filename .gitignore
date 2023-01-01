@@ -3,3 +3,5 @@ downloader/__pycache__
 .vscode
 video/*
 audio/*
+.webm
+.mp4
