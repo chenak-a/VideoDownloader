@@ -5,6 +5,7 @@ from math import ceil
 import random
 import re
 import shutil
+import sys
 import threading
 import traceback
 import js2py
@@ -42,13 +43,15 @@ class AbsHandler(ABC):
 
     def __init__(self):
         self._Title: str = None
+        self._fileName :str = None
         self._filetype: str = None
         self._type: str = self.formatType.VIDEO
         self._body: str = None
         self._payload: map = None
         self._try: int = 0
-        self._contentSize = None
-        self._threadPoolSize = 50
+        self._contentSize :int = None
+        self._threadPoolSize :int = 50
+        self._hiddenDir :dict = {}
 
     @abstractmethod
     def setPayload(self) -> None:
@@ -215,7 +218,7 @@ class Youtube(AbsHandler):
         )
         if response.ok:
             with open(
-                "{0}/".format(directory) + self._Title + "." + self._filetype, "r+b"
+                "{0}/".format(directory) + self._fileName, "r+b"
             ) as binary_file:
                 binary_file.seek(start, 1)
                 size = end - start
@@ -243,12 +246,12 @@ class Youtube(AbsHandler):
                 "Connection": "Keep-Alive",
                 "Upgrade-Insecure-Requests": "1",
                 "sec-ch-ua-platform": "Windows",
-                "Cache-Control": "no-store",
+                "DNT": "1",
                 "Range": "bytes=0-",
             },
         )
-
-        if not response.ok:
+        print(int(response.headers["Content-Length"]))
+        if not response.ok or int(response.headers["Content-Length"]) == 0 :
             raise VideoErrorhandler(
                 "response code / {0} couldn't access to this video {1} will try {2}/{3} again ...".format(
                     str(response.status_code), self._Title, self._try, str(self.MAXTRY)
@@ -256,12 +259,13 @@ class Youtube(AbsHandler):
             )
         print("Connected to video server {1} : {0} ".format(self._Title, "\U0001F680"))
         return response
+    
     def getContentSize(self, data: str) -> int:
         response = self.checkServerConnection(data)
         return int(response.headers["Content-Length"])
 
     def createFile(self, size: int, dir: str):
-        with open("{0}/".format(dir) + self._Title + "." + self._filetype, "wb") as out:
+        with open("{0}/".format(dir) + self._fileName, "wb") as out:
             out.truncate(size)
 
     def getIncrement(self, size: int, increment: int):
@@ -295,17 +299,16 @@ class Youtube(AbsHandler):
         return emoji[random.randint(0, len(emoji)-1)]
 
     def checkFileExist(self):
-        path = os.path.join(self._type.lower(), self._Title + "." + self._filetype)
+        path = os.path.join(self._type.lower(), self._fileName)
         return os.path.exists(path)
 
     def threadConfig(self, increment: int, initialIncrement: int):
-        if increment == self.BUFFERMIN:
-            self._threadPoolSize = min(self._threadPoolSize, initialIncrement)
-        else:
+        if increment > self.BUFFERMIN:
             treadPool = (self._threadPoolSize * increment) // self.BUFFERMIN
             self._threadPoolSize = min(self.MAXTREADPOOLSIZE, treadPool)
 
     def __saveFile(self, data: str, dir: str = None):
+        self._fileName = self._Title + "." + self._filetype
         if self.checkFileExist():
             print("this video is already installed 💾 : " + self._Title[:30])
         else:
@@ -319,6 +322,10 @@ class Youtube(AbsHandler):
             increment = max(self.BUFFERMIN, initialIncrement)
             self.threadConfig(increment, initialIncrement)
             lock = threading.Lock()
+            print(self._threadPoolSize)
+            print(increment)
+            print(data)
+            print(size)
             with ThreadPoolExecutor(max_workers=self._threadPoolSize) as executor:
                 with tqdm(
                     total=size,
@@ -332,7 +339,6 @@ class Youtube(AbsHandler):
                         result = executor.submit(
                             self.downloadSlices, data, start, end, bar, lock, directory
                         )
-                    print(data["mimeType"])
                     result.result()
                 bar.close()
             print(
@@ -348,39 +354,37 @@ class Youtube(AbsHandler):
     def saveHiddenDir(self, data: map) ->str:
         directory = "." + self.getTypeFile(data)[0]
         self.__saveFile(data, directory)
-        return data,directory
+        return directory
         
-    def combineVideoAudio(self, videoData ) -> None:
-        videoPath , audioPath = None , None
-       
-        for a in videoData:
-            self.saveHiddenDir(a)
-                        
-        #self.__createDirectory(self._type.tolower())
-        #videoPath = "{0}/".format(dir[videoData]) + self._Title + "." + self._filetype
-        #audioPath = "{0}/".format(dir[audioData]) + self._Title + "." + self._filetype
-        #gen = read_frames(videoPath)
-        #metadata = gen.__next__()
-        #
-        #frameSize = count_frames_and_secs(videoPath)
-        #write = write_frames(videoPath[1:]
-        #                     ,metadata["size"]
-        #                     ,fps=metadata["fps"]
-        #                    ,bitrate=videoData["bitrate"]
-        #                    ,input_params=["-thread_queue_size","1000"]
-        #                    ,codec=metadata["codec"]
-        #                    ,audio_path=audioPath
-        #                     )
-        #with tqdm( total=frameSize[0],                  
-        #            unit="iB",
-        #            unit_scale=True,) as bar:
-        #    write.send(None) 
-        #    for frame in gen:
-        #        write.send(frame)
-        #        bar.update(1)
-        #    write.close() 
-        #for dirName in dir.items():
-        #    self.__removeFile(dirName,self._Title + "." + self._filetype)
+    def combineVideoAudio(self) -> None:
+        
+        self.__createDirectory(self._type.lower())
+        print(self._hiddenDir)
+        videoPath = "{0}/".format(self._hiddenDir[self.formatType.VIDEO]) + self._fileName
+        audioPath = "{0}/".format(self._hiddenDir[self.formatType.AUDIO]) + self._fileName
+      
+        gen = read_frames(videoPath)
+        metadata = gen.__next__()
+        
+        frameSize = count_frames_and_secs(videoPath)
+        write = write_frames(videoPath[1:]
+                             ,metadata["size"]
+                             ,fps=metadata["fps"]
+                            ,input_params=["-thread_queue_size","1000"]
+                            ,ffmpeg_log_level=""
+                            ,codec=metadata["codec"]
+                            ,audio_path=audioPath
+                             )
+        with tqdm( total=frameSize[0],                  
+                    unit="iB",
+                    unit_scale=True,) as bar:
+            write.send(None) 
+            for frame in gen:
+                write.send(frame)
+                bar.update(1)
+            write.close() 
+        for dirName in self._hiddenDir.values():
+            self.__removeFile(dirName,self._fileName)
         
     def __removeFile(self, directory:str ,filename:str):
         if os.path.exists(directory+"/"+filename):
@@ -393,10 +397,16 @@ class Youtube(AbsHandler):
         streamingData = self._payload["streamingData"]
         videoAudio = self.__getVideo(videoQuality, streamingData["formats"])
         if str(videoQuality) not in videoAudio["qualityLabel"]:
-            video = self.__getVideo(videoQuality, streamingData["adaptiveFormats"])
-            audio = self.__getAudio(streamingData["adaptiveFormats"])
             # TODO: combine video and audio
-            self.combineVideoAudio([video, audio])
+            if not self._hiddenDir.__contains__(self.formatType.VIDEO) :  
+                video = self.__getVideo(videoQuality, streamingData["adaptiveFormats"])
+                self._hiddenDir[self.formatType.VIDEO] = self.saveHiddenDir(video)
+                self._try = 0
+            if not self._hiddenDir.__contains__(self.formatType.AUDIO) :
+                audio = self.__getAudio(streamingData["adaptiveFormats"])
+                self._hiddenDir[self.formatType.AUDIO] = self.saveHiddenDir(audio)
+                
+            self.combineVideoAudio()
             
         else:
             self.__saveFile(videoAudio)
@@ -422,7 +432,7 @@ class Youtube(AbsHandler):
         except:
             raise VideoErrorhandler("we couldn't find video title")
 
-    def download(self, url: str, qualityVideo: int = 360) -> None:
+    def download(self, url: str, qualityVideo: int = 720) -> None:
         while True:
             try:
                 urlResponse = self._fetch(url)

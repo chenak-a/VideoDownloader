@@ -21,7 +21,9 @@ class Downloader:
 def main():
     downloader = Downloader()
     video = [
-        "https://www.youtube.com/watch?v=4K4dgno25Ck"
+    #    "https://www.youtube.com/watch?v=4K4dgno25Ck",
+    #    "https://www.youtube.com/watch?v=JFgrckf52Uw",
+        "https://www.youtube.com/watch?v=NVH79ehGfY0"
     ]
 
     downloader.run(video, downloader.TYPE.VIDEO)
