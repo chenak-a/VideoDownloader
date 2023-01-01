@@ -1,6 +1,8 @@
 .venv
-downloader/__pycache__
 .vscode
+.video
+.audio
+downloader/__pycache__
 video/*
 audio/*
 .webm
