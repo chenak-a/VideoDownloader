@@ -1,4 +1,5 @@
 from itertools import repeat
+import threading
 from downloader import VideoDownloader, Format
 import concurrent.futures
 
@@ -8,25 +9,23 @@ class Downloader:
 
     def __init__(self) -> None:
         self.downloader = VideoDownloader()
+        
         self.threadPool = 5
 
-    def run(self, listVideo: list, type: str):
-        self.threadPool = min(self.threadPool, len(listVideo))
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.threadPool
-        ) as executor:
-            executor.map(self.downloader.downloadVideo, listVideo, repeat(type))
+    
 
 
 def main():
-    downloader = Downloader()
+    downloader = VideoDownloader()
     video = [
-    #    "https://www.youtube.com/watch?v=4K4dgno25Ck",
-    #    "https://www.youtube.com/watch?v=JFgrckf52Uw",
-        "https://www.youtube.com/watch?v=NVH79ehGfY0"
+        "https://www.youtube.com/watch?v=Aqm9kcpBICI",
+        "https://www.youtube.com/watch?v=bLhnw4hYZZU",
+        "https://www.youtube.com/watch?v=iGLmZvwKudY",
+        "https://www.youtube.com/watch?v=5b35haQV7tU",
+        "https://www.youtube.com/watch?v=G0x6DJ9eVsM",
+        
     ]
-
-    downloader.run(video, downloader.TYPE.VIDEO)
+    downloader.run(audio=video)
 
 
 if __name__ == "__main__":
