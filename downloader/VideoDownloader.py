@@ -9,14 +9,15 @@ class VideoDownloader:
     def __init__(self):
         self.__downloader: AbsHandler = None
         self.__threadPool :int = 5
-        
+        self.__defaultVideoQuality = 0
     
     def __getDomain(self, url: str) -> str:
         domain_com = re.search(r"\w*.com", url)[0]
         return domain_com.replace(".com", "")
     
-    def setVideoQuality(self, quality:int):
-        self.__downloader.setVideoQuality(quality)
+    def setDefaultVideoQuality(self,videoQuality: int) -> None:
+        self.__defaultVideoQuality = videoQuality
+        print(self.__defaultVideoQuality)
     
     def __threadRun(self,thread:ThreadPoolExecutor,urlList:list,formatType:str):
             thread.map(self.downloadVideo,urlList,repeat(formatType))
@@ -30,8 +31,8 @@ class VideoDownloader:
     def downloadVideo(self, url: str,typeFormat:str) -> None:
         domain = self.__getDomain(url)
         if domain == "youtube":
-            self.downloader = Youtube()
+            self.downloader = Youtube(self.__defaultVideoQuality,typeFormat)
         else:
             return
-        self.downloader.setFormat(typeFormat)
+        
         self.downloader.download(url)

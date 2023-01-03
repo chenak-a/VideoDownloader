@@ -1,31 +1,18 @@
-from itertools import repeat
-import threading
-from downloader import VideoDownloader, Format
-import concurrent.futures
-
-
-class Downloader:
-    TYPE = Format()
-
-    def __init__(self) -> None:
-        self.downloader = VideoDownloader()
-        
-        self.threadPool = 5
-
-    
-
+from downloader import VideoDownloader
 
 def main():
     downloader = VideoDownloader()
     video = [
-        "https://www.youtube.com/watch?v=Aqm9kcpBICI",
-        "https://www.youtube.com/watch?v=bLhnw4hYZZU",
-        "https://www.youtube.com/watch?v=iGLmZvwKudY",
-        "https://www.youtube.com/watch?v=5b35haQV7tU",
-        "https://www.youtube.com/watch?v=G0x6DJ9eVsM",
+        "https://www.youtube.com/watch?v=G8h_2bvkHa0",
+        "https://www.youtube.com/watch?v=F9Zt4IFOvLI"
+    
         
     ]
-    downloader.run(audio=video)
+    audio = [
+        "https://www.youtube.com/watch?v=BYRsQvPOv6o"
+    ]
+    downloader.setDefaultVideoQuality(720)
+    downloader.run(video=video,audio=audio)
 
 
 if __name__ == "__main__":
