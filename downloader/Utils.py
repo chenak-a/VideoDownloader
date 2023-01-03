@@ -2,7 +2,7 @@ from random import randint
 
 
 class Utils:
-    def getEmoji(self):
+    def getEmoji(self) -> str:
         emoji = [
             "\U0001F680",
             "\U0001F311",

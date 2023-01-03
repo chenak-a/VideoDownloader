@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import re
 from concurrent.futures import ThreadPoolExecutor
 from itertools import repeat
 
-from .VideoHandler import AbsHandler, Format, Youtube
 from .FileSystemHandler import FileSystemHandler
 from .Utils import Utils
+from .VideoHandler import AbsHandler, Format, Youtube
+
+
 class VideoDownloader:
     TYPE = Format()
 
@@ -21,12 +25,11 @@ class VideoDownloader:
 
     def setDefaultVideoQuality(self, videoQuality: int) -> None:
         self.__defaultVideoQuality = videoQuality
-        print(self.__defaultVideoQuality)
 
-    def __threadRun(self, thread: ThreadPoolExecutor, urlList: list, formatType: str):
+    def __threadRun(self, thread: ThreadPoolExecutor, urlList: list, formatType: str) -> None:
         thread.map(self.downloadVideo, urlList, repeat(formatType))
 
-    def run(self, *, video: list = [], audio: list = []):
+    def run(self, *, video: list = [], audio: list = []) -> None:
         if len(video) == 0 and len(audio) == 0:
             return
         with ThreadPoolExecutor(max_workers=self.__threadPool) as executor:
@@ -36,7 +39,9 @@ class VideoDownloader:
     def downloadVideo(self, url: str, typeFormat: str) -> None:
         domain = self.__getDomain(url)
         if domain == "youtube":
-            self.downloader = Youtube(self.__file,self.__util,self.__defaultVideoQuality, typeFormat)
+            self.downloader = Youtube(
+                self.__file, self.__util, self.__defaultVideoQuality, typeFormat
+            )
         else:
             return
 
