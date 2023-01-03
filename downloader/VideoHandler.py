@@ -427,7 +427,7 @@ class Youtube(AbsHandler):
         finally:
             for directory ,data in self._hiddenDir.items():
                 directoryName = ".{0}".format(directory.lower())
-                removedFile = self.__removeFile(directoryName,data["filePath"])
+                removedFile = self.__removeFile(data["filePath"])
                 if removedFile :
                     self.removeDirectory(directoryName)
                 
@@ -435,7 +435,7 @@ class Youtube(AbsHandler):
         if not len(os.listdir(directory)):
                 os.rmdir(directory)
                
-    def __removeFile(self, directory:str ,filename:str):
+    def __removeFile(self,filename:str):
         if os.path.exists(filename):
             os.remove(filename)
             return True
