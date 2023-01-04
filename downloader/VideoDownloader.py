@@ -26,7 +26,9 @@ class VideoDownloader:
     def setDefaultVideoQuality(self, videoQuality: int) -> None:
         self.__defaultVideoQuality = videoQuality
 
-    def __threadRun(self, thread: ThreadPoolExecutor, urlList: list, formatType: str) -> None:
+    def __threadRun(
+        self, thread: ThreadPoolExecutor, urlList: list, formatType: str
+    ) -> None:
         thread.map(self.downloadVideo, urlList, repeat(formatType))
 
     def run(self, *, video: list = [], audio: list = []) -> None:

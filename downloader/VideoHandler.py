@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import threading
 import traceback
 import urllib.parse
@@ -137,7 +136,10 @@ class Youtube(AbsHandler):
         "AUDIO_QUALITY_MEDIUM": 1,
         "AUDIO_QUALITY_HIGH": 2,
     }
-    VIDEOCOMPRESSION = {"video/mp4": 0, "video/webm": 1}
+
+    
+    VIDEOCODEC = { "video/mp4" : {"avc1": 0, "av01": 2},  "video/webm": {"vp9": 1}}
+    
 
     def __init__(
         self,
@@ -198,10 +200,14 @@ class Youtube(AbsHandler):
 
     def __getVideoQuality(self, data: dict) -> int:
         videoQuality = int(re.search(r"\d*", data["qualityLabel"])[0])
-        videoCompresion = self.VIDEOCOMPRESSION[
-            re.search(r"\w*\/\w*", data["mimeType"])[0]
-        ]
-        return videoCompresion + int(videoQuality)
+        videFileType = re.search(r"\w*\/\w*", data["mimeType"])[0]
+        
+        print(re.search(r"\w*\/\w*", data["mimeType"])[0])
+        print(re.search(r'codecs="\w*', data["mimeType"])[0].replace('codecs="',""))
+        videCompression = re.search(r'codecs="\w*', data["mimeType"])[0].replace('codecs="',"")
+
+        videolevel = self.VIDEOCODEC[videFileType][videCompression]
+        return videolevel + int(videoQuality)
 
     def _searchAudio(self, listData: list, fileType: str) -> dict:
         try:
@@ -254,9 +260,9 @@ class Youtube(AbsHandler):
                 return videoList[middle]
             elif middle == 0:
                 return videoList[middle]
-            elif quality > videoQuality ^ reverse and quality < videoQuality:
+            elif bool(quality > videoQuality) != bool(reverse and quality < videoQuality):
                 video = self._searchVideo(videoList[1:middle], quality, reverse)
-                return self.__defaultVideo(video, videoList[0])
+                return self.__defaultVideo(video, videoList[len(videoList)-1])
             else:
                 video = self._searchVideo(videoList[middle + 1 :], quality, reverse)
                 return self.__defaultVideo(video, videoList[middle])
@@ -439,51 +445,48 @@ class Youtube(AbsHandler):
         audioPath = self._hiddenDir[self.formatType.AUDIO]["filePath"]
         if not os.path.exists(videoPath) or not os.path.exists(audioPath):
             sleep(2)
-
-            gen = read_frames(videoPath)
-            metadata = gen.__next__()
-            audioBitRate = self._hiddenDir[self.formatType.AUDIO]["metaData"]["bitrate"]
-            frameSize = count_frames_and_secs(videoPath)
-            write = write_frames(
-                videoPath[1:],
-                metadata["size"],
-                fps=metadata["fps"],
-                codec=metadata["codec"],
-                audio_path=audioPath,
-                audio_codec="libopus",
-                input_params=["-vsync", "0", "-thread_queue_size", "1024"],
-                output_params=[
-                    "-cpu-used",
-                    "8",
-                    "-rtbufsize",
-                    "100M",
-                    "-b:a",
-                    str(min(audioBitRate, 512000)),
-                    "-v",
-                    "quiet",
-                ],
-            )
-            with tqdm(total=frameSize[0]) as bar:
-                try:
-                    write.send(None)
-                    for frame in gen:
-                        write.send(frame)
-                        bar.update(1)
-
-                except:
-                    print(traceback.print_exc())
-                    print("something went wrong while merging files")
-                    self._fileSystem.cleanPath(videoPath[1:])
-                finally:
-                    bar.refresh()
-                    bar.close()
-                    gen.close()
-                    write.close()
-                    for directory, data in self._hiddenDir.items():
-                        directoryName = ".{0}".format(directory.lower())
-                        removedFile = self._fileSystem.removeFile(data["filePath"])
-                        if removedFile:
-                            self._fileSystem.removeDirectory(directoryName)
+        gen = read_frames(videoPath)
+        metadata = gen.__next__()
+        audioBitRate = self._hiddenDir[self.formatType.AUDIO]["metaData"]["bitrate"]
+        frameSize = count_frames_and_secs(videoPath)
+        write = write_frames(
+            videoPath[1:],
+            metadata["size"],
+            fps=metadata["fps"],
+            codec=metadata["codec"],
+            audio_path=audioPath,
+            audio_codec="libopus",
+            input_params=["-vsync", "0", "-thread_queue_size", "1024"],
+            output_params=[
+                "-cpu-used",
+                "8",
+                "-rtbufsize",
+                "100M",
+                "-b:a",
+                str(min(audioBitRate, 512000)),
+                "-v",
+                "quiet",
+            ],
+        )
+        with tqdm(total=frameSize[0]) as bar:
+            try:
+                write.send(None)
+                for frame in gen:
+                    write.send(frame)
+                    bar.update(1)
+            except:
+                print(traceback.print_exc())
+                print("something went wrong while merging files")
+                self._fileSystem.cleanPath(videoPath[1:])
+            finally:
+                gen.close()
+                write.close()
+                bar.close()
+                for directory, data in self._hiddenDir.items():
+                    directoryName = ".{0}".format(directory.lower())
+                    removedFile = self._fileSystem.removeFile(data["filePath"])
+                    if removedFile:
+                        self._fileSystem.removeDirectory(directoryName)
 
     def __getAudioVideo(self, type: str, streamingData: dict) -> None:
         self._hiddenDir[type] = {}
@@ -571,4 +574,5 @@ class Youtube(AbsHandler):
                     break
             except Exception:
                 print("Youtube made changes to there website")
+                print(traceback.format_exc())
                 break
