@@ -21,12 +21,15 @@ class VideoDownloader:
     def __getDomain(self, url: str) -> str:
         domain_com = re.search(r"\w*.com", url)[0]
         return domain_com.replace(".com", "")
-
+    
     def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
         print("work in progress")
-        raise
+        #raise
         self.__defaultVideoQuality = videoQuality
 
+    def setTreadPoolSize(self,size:int) -> None:
+        self.__threadPool = min(self.__threadPool,size)
+            
     def __threadRun(
         self, thread: ThreadPoolExecutor, urlList: list, formatType: str
     ) -> None:

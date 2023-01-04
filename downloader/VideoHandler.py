@@ -199,16 +199,18 @@ class Youtube(AbsHandler):
             data["url"] = self.__decipherUrl(data["signatureCipher"])
         return data
 
-    def __getVideoQuality(self, data: dict) -> int:
+    def __getVideoQuality(self, data: dict,sort: bool) -> int:
+        
         videoQuality = int(re.search(r"\d*", data["qualityLabel"])[0])
-        videFileType = re.search(r"\w*\/\w*", data["mimeType"])[0]
+        if not sort :
+            videFileType = re.search(r"\w*\/\w*", data["mimeType"])[0]
 
-        videCompression = re.search(r'codecs="\w*', data["mimeType"])[0].replace(
-            'codecs="', ""
-        )
+            videCompression = re.search(r'codecs="\w*', data["mimeType"])[0].replace(
+                'codecs="', ""
+            )
 
-        videolevel = self.VIDEOCODEC[videFileType][videCompression]
-        return videolevel + int(videoQuality)
+            videoQuality += self.VIDEOCODEC[videFileType][videCompression]
+        return videoQuality
 
     def _searchAudio(self, listData: list, fileType: str) -> dict:
         try:
@@ -250,13 +252,13 @@ class Youtube(AbsHandler):
 
         if (videoList == []) or ("qualityLabel" not in videoList[0]):
             return
-        if quality == self.__getVideoQuality(videoList[0]):
+        if quality == self.__getVideoQuality(videoList[0],reverse):
             return videoList[0]
         else:
             middle = len(videoList) // 2
             if "video" not in videoList[middle]["mimeType"]:
                 return videoList[0]
-            videoQuality = self.__getVideoQuality(videoList[middle])
+            videoQuality = self.__getVideoQuality(videoList[middle],reverse)
             if quality == videoQuality:
                 return videoList[middle]
             elif middle == 0:
@@ -433,8 +435,6 @@ class Youtube(AbsHandler):
         self._fileSystem.createDirectory(self._type.lower())
         videoPath = self._hiddenDir[self.formatType.VIDEO]["filePath"]
         audioPath = self._hiddenDir[self.formatType.AUDIO]["filePath"]
-        if not os.path.exists(videoPath) or not os.path.exists(audioPath):
-            sleep(2)
         gen = read_frames(videoPath)
         metadata = gen.__next__()
         audioBitRate = self._hiddenDir[self.formatType.AUDIO]["metaData"]["bitrate"]
@@ -546,7 +546,8 @@ class Youtube(AbsHandler):
         return False
 
     def download(self, url: str) -> None:
-        while True:
+        installing = True
+        while self._try <= self.MAXTRY or installing:
             try:
                 urlResponse = get(url)
                 if urlResponse.ok:
@@ -575,23 +576,23 @@ class Youtube(AbsHandler):
                         self._Title[:30], self._utils.getEmoji()
                     )
                 )
-                break
+                installing = False
             except VideoErrorhandler as e:
-                if self._try <= self.MAXTRY:
-                    self._try += 1
-                    print(e.message)
-                    if self._try > 10:
-                        sleep(5)
-                else:
-                    print(
-                        "we couldn't download {0} try agin later ".format(
-                            self._Title[:15]
-                        ),
-                        end="\r",
-                        flush=True,
-                    )
-                    break
+                self._try += 1
+                print(e.message)
+                if self._try > 10:
+                    sleep(5)
+
             except Exception:
                 print("Youtube made changes to there website")
                 print(traceback.format_exc())
                 break
+        if self._try > self.MAXTRY :
+            print(
+                "we couldn't download {0} try agin later ".format(
+                    self._Title[:15]
+                ),
+                end="\r",
+                flush=True,
+            )
+        
