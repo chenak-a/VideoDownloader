@@ -257,7 +257,7 @@ class Youtube(AbsHandler):
         else:
             middle = len(videoList) // 2
             if "video" not in videoList[middle]["mimeType"]:
-                return videoList[0]
+                return self._searchVideo(videoList[1:middle], quality, reverse)
             videoQuality = self.__getVideoQuality(videoList[middle],reverse)
             if quality == videoQuality:
                 return videoList[middle]
@@ -274,9 +274,13 @@ class Youtube(AbsHandler):
 
     def __getVideo(self, streamingData: dict, decrementalSort: str = False) -> dict:
         video = streamingData[len(streamingData) - 1]
+        quality = self._qualityVideo
+        if not decrementalSort :
+            #install webm file = quality + index of codec which is 1
+            quality += 1 
         if self._qualityVideo:
             video = self._searchVideo(
-                streamingData, self._qualityVideo, decrementalSort
+                streamingData, quality, decrementalSort
             )
 
         return self.__checkCrypted(video)
@@ -472,11 +476,12 @@ class Youtube(AbsHandler):
                 gen.close()
                 write.close()
                 bar.close()
-                for directory, data in self._hiddenDir.items():
-                    directoryName = ".{0}".format(directory.lower())
-                    removedFile = self._fileSystem.removeFile(data["filePath"])
-                    if removedFile:
-                        self._fileSystem.removeDirectory(directoryName)
+                
+                #for directory, data in self._hiddenDir.items():
+                #    directoryName = ".{0}".format(directory.lower())
+                #    removedFile = self._fileSystem.removeFile(data["filePath"])
+                #    if removedFile:
+                #        self._fileSystem.removeDirectory(directoryName)
 
     def __getAudioVideo(self, type: str, streamingData: dict) -> None:
         self._hiddenDir[type] = {}
@@ -502,9 +507,6 @@ class Youtube(AbsHandler):
         streamingData = self._payload["streamingData"]
         videoAudio = self.__getVideo(streamingData["formats"], True)
         if str(self._qualityVideo) not in videoAudio["qualityLabel"]:
-
-            # it need to be a webm to be able to combine audio and video
-            self._qualityVideo += 1
 
             for format in [self.formatType.VIDEO, self.formatType.AUDIO]:
                 if not self._hiddenDir.__contains__(format):
