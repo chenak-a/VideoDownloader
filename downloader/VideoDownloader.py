@@ -8,6 +8,7 @@ from .FileSystemHandler import FileSystemHandler
 from .Utils import Utils
 from .VideoHandler import AbsHandler, Format, Youtube
 
+
 class VideoDownloader:
     TYPE = Format()
     
@@ -24,8 +25,7 @@ class VideoDownloader:
     
     def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
         print("work in progress")
-        #raise
-        self.__defaultVideoQuality = videoQuality
+        #self.__defaultVideoQuality = videoQuality
 
     def setTreadPoolSize(self,size:int) -> None:
         self.__threadPool = min(self.__threadPool,size)

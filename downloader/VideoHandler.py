@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import threading
 import traceback
 import urllib.parse
 from abc import ABC, abstractmethod
-from asyncio import Lock
 from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 from time import sleep
@@ -235,7 +232,7 @@ class Youtube(AbsHandler):
                     and fileType in audio[2]
                 ):
                     break
-                i = i - 1
+                i -= 1
 
             return audio[0]
         except:
@@ -477,11 +474,11 @@ class Youtube(AbsHandler):
                 write.close()
                 bar.close()
                 
-                #for directory, data in self._hiddenDir.items():
-                #    directoryName = ".{0}".format(directory.lower())
-                #    removedFile = self._fileSystem.removeFile(data["filePath"])
-                #    if removedFile:
-                #        self._fileSystem.removeDirectory(directoryName)
+                for directory, data in self._hiddenDir.items():
+                    directoryName = ".{0}".format(directory.lower())
+                    removedFile = self._fileSystem.removeFile(data["filePath"])
+                    if removedFile:
+                        self._fileSystem.removeDirectory(directoryName)
 
     def __getAudioVideo(self, type: str, streamingData: dict) -> None:
         self._hiddenDir[type] = {}
