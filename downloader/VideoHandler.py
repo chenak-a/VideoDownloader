@@ -293,7 +293,7 @@ class Youtube(AbsHandler):
         return format.replace("/", "")
 
     def __downloadSlices(
-        self, data: str, start: int, end: int, bar: tqdm, lock: Lock, file: str
+        self, data: str, start: int, end: int, bar: tqdm, file: str
     ) -> list:
         response = get(
             data["url"],
@@ -403,7 +403,6 @@ class Youtube(AbsHandler):
         increment = max(self.BUFFERMIN, initialIncrement)
         self._threadConfig(increment)
         try:
-            lock = threading.Lock()
             with ThreadPoolExecutor(max_workers=self._threadPoolSize) as executor:
                 with tqdm(
                     total=size,
@@ -414,7 +413,7 @@ class Youtube(AbsHandler):
                     result = None
                     for start, end in self.__getIncrement(size, increment):
                         result = executor.submit(
-                            self.__downloadSlices, data, start, end, bar, lock, file
+                            self.__downloadSlices, data, start, end, bar, file
                         )
                     result.result()
                 bar.close()
