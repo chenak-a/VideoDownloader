@@ -36,5 +36,5 @@ class FileSystemHandler:
     def cleanPath(self, fullPathFileName: str) -> None:
         removed = self.removeFile(fullPathFileName)
         if removed:
-            path = re.search(r"^\w*", fullPathFileName)
+            path = re.search(r"^\w*", fullPathFileName)[0]
             self.removeDirectory(path)

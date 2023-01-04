@@ -8,10 +8,9 @@ from .FileSystemHandler import FileSystemHandler
 from .Utils import Utils
 from .VideoHandler import AbsHandler, Format, Youtube
 
-
 class VideoDownloader:
     TYPE = Format()
-
+    
     def __init__(self):
         self.__downloader: AbsHandler = None
         self.__threadPool: int = 5
@@ -23,7 +22,9 @@ class VideoDownloader:
         domain_com = re.search(r"\w*.com", url)[0]
         return domain_com.replace(".com", "")
 
-    def setDefaultVideoQuality(self, videoQuality: int) -> None:
+    def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
+        print("work in progress")
+        raise
         self.__defaultVideoQuality = videoQuality
 
     def __threadRun(
