@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import traceback
 import urllib.parse
 from abc import ABC, abstractmethod
@@ -10,7 +12,7 @@ from math import ceil
 from time import sleep
 
 import js2py
-from imageio_ffmpeg import count_frames_and_secs, read_frames, write_frames
+from imageio_ffmpeg import get_ffmpeg_exe,count_frames_and_secs, read_frames, write_frames
 from requests import Response, get, head
 from tqdm import tqdm
 
@@ -134,11 +136,10 @@ class Youtube(AbsHandler):
         "AUDIO_QUALITY_HIGH": 2,
     }
     
-    WEBM = "webm"
-    MP4 = "mp4"
+    VIDEO_CODEC = {"video/mp4": {"av01": 0, "avc1": 2}, "video/webm": {"vp9": 1}}
     
-    VIDEOCODEC = {"video/mp4": {"av01": 0, "avc1": 2}, "video/webm": {"vp9": 1}}
-
+    AUDIO_DECODER = {"audio/mp4":"aac","audio/webm":"libopus"}
+    
     def __init__(
         self,
         fileSystem: FileSystemHandler,
@@ -206,7 +207,7 @@ class Youtube(AbsHandler):
                 'codecs="', ""
             )
 
-            videoQuality += self.VIDEOCODEC[videFileType][videCompression]
+            videoQuality += self.VIDEO_CODEC[videFileType][videCompression]
         return videoQuality
 
     def _searchAudio(self, listData: list, fileType: str) -> dict:
@@ -271,13 +272,9 @@ class Youtube(AbsHandler):
 
     def __getVideo(self, streamingData: dict, decrementalSort: str = False) -> dict:
         video = streamingData[len(streamingData) - 1]
-        quality = self._qualityVideo
-        if not decrementalSort :
-            #install webm file = quality + index of codec which is 1
-            quality += 1 
         if self._qualityVideo:
             video = self._searchVideo(
-                streamingData, quality, decrementalSort
+                streamingData,  self._qualityVideo, decrementalSort
             )
 
         return self.__checkCrypted(video)
@@ -400,6 +397,7 @@ class Youtube(AbsHandler):
         fileType = self._fileType(data["mimeType"])
         fileName = self._Title + "." + fileType
         size = self.__getContentSize(data)
+        sleep(2)
         self._fileSystem.createDirectory(directory)
         file = self._fileSystem.createFile(size, directory, fileName)
         initialIncrement = ceil(size / self.SLICE)
@@ -421,7 +419,6 @@ class Youtube(AbsHandler):
                     result.result()
                 bar.close()
         except:
-            self._fileSystem.cleanPath(file)
             raise VideoErrorhandler("server err")
         return file
 
@@ -436,49 +433,19 @@ class Youtube(AbsHandler):
         self._fileSystem.createDirectory(self._type.lower())
         videoPath = self._hiddenDir[self.formatType.VIDEO]["filePath"]
         audioPath = self._hiddenDir[self.formatType.AUDIO]["filePath"]
-        gen = read_frames(videoPath)
-        metadata = gen.__next__()
         audioBitRate = self._hiddenDir[self.formatType.AUDIO]["metaData"]["bitrate"]
-        frameSize = count_frames_and_secs(videoPath)
-        write = write_frames(
-            videoPath[1:],
-            metadata["size"],
-            fps=metadata["fps"],
-            codec=metadata["codec"],
-            audio_path=audioPath,
-            audio_codec="libopus",
-            input_params=["-vsync", "0", "-thread_queue_size", "1024"],
-            output_params=[
-                "-cpu-used",
-                "8",
-                "-rtbufsize",
-                "100M",
-                "-b:a",
-                str(min(audioBitRate, 512000)),
-                "-v",
-                "quiet",
-            ],
-        )
-        with tqdm(total=frameSize[0]) as bar:
-            try:
-                write.send(None)
-                for frame in gen:
-                    write.send(frame)
-                    bar.update(1)
-            except:
-                print(traceback.print_exc())
-                print("something went wrong while merging files")
-                self._fileSystem.cleanPath(videoPath[1:])
-            finally:
-                gen.close()
-                write.close()
-                bar.close()
-                
-                for directory, data in self._hiddenDir.items():
-                    directoryName = ".{0}".format(directory.lower())
-                    removedFile = self._fileSystem.removeFile(data["filePath"])
-                    if removedFile:
-                        self._fileSystem.removeDirectory(directoryName)
+        ffmpeg = get_ffmpeg_exe()
+        typeAudio  = re.search(r"\w*\/\w*", self._hiddenDir[self.formatType.AUDIO]["metaData"]["mimeType"])[0] 
+        libDecoder = self.AUDIO_DECODER[typeAudio]
+        try :
+            process =subprocess.run([ffmpeg ,"-v","quiet","-stats","-i",audioPath,"-i",videoPath,"-c:v","copy","-c:a",libDecoder,"-b:a",str(audioBitRate),"-preset","ultrafast","-threads",str(self.MAXTREADPOOLSIZE),"-cpu-used",str(os.cpu_count()),videoPath[1:]], check=True, stdout=subprocess.PIPE, universal_newlines=True)
+            print(process.stdout)
+        finally :
+            for directory, data in self._hiddenDir.items():
+                directoryName = ".{0}".format(directory.lower())
+                removedFile = self._fileSystem.removeFile(data["filePath"])
+                if removedFile:
+                    self._fileSystem.removeDirectory(directoryName)
 
     def __getAudioVideo(self, type: str, streamingData: dict) -> None:
         self._hiddenDir[type] = {}
@@ -490,12 +457,9 @@ class Youtube(AbsHandler):
                 result = self.__getAudio(streamingData)
             if result != None:
                 filetype = self._fileType(result["mimeType"])
-                if filetype == self.WEBM:
-                    self._hiddenDir[type]["metaData"] = result
-                    self._hiddenDir[type]["filePath"] = self.__saveInHiddenDir(result)
-                else :
-                    print("we could not find the file type we will install available one")
-                    self._qualityVideo=0
+                self._hiddenDir[type]["metaData"] = result
+                self._hiddenDir[type]["filePath"] = self.__saveInHiddenDir(result)
+               
         except:
             self._hiddenDir.pop(type)
             raise
@@ -536,7 +500,7 @@ class Youtube(AbsHandler):
             raise VideoErrorhandler("we couldn't find video title")
 
     def fileExists(self) -> bool:
-        for fileTypeVideo in self.VIDEOCODEC:
+        for fileTypeVideo in self.VIDEO_CODEC:
             typeFile = self._fileType(fileTypeVideo)
             if self._fileSystem.checkFileExist(
                 self._type.lower(), self._Title + "." + typeFile
