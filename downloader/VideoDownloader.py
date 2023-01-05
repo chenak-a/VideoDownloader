@@ -12,9 +12,11 @@ from .VideoHandler import AbsHandler, Format, Youtube
 class VideoDownloader:
     TYPE = Format()
     
+    MAXTREADSZIE = 5
+    
     def __init__(self):
         self.__downloader: AbsHandler = None
-        self.__threadPool: int = 5
+        self.__threadPool: int = self.MAXTREADSZIE
         self.__defaultVideoQuality = 0
         self.__file = FileSystemHandler()
         self.__util = Utils()
@@ -28,7 +30,7 @@ class VideoDownloader:
         self.__defaultVideoQuality = videoQuality
 
     def setTreadPoolSize(self,size:int) -> None:
-        self.__threadPool = min(self.__threadPool,size)
+        self.__threadPool = min(self.MAXTREADSZIE,size)
             
     def __threadRun(
         self, thread: ThreadPoolExecutor, urlList: list, formatType: str
