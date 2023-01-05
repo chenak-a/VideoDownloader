@@ -12,9 +12,11 @@ from .VideoHandler import AbsHandler, Format, Youtube
 class VideoDownloader:
     TYPE = Format()
     
+    MAX_TREAD_SIZE = 5
+    
     def __init__(self):
         self.__downloader: AbsHandler = None
-        self.__threadPool: int = 5
+        self.__threadPool: int = self.MAX_TREAD_SIZE
         self.__defaultVideoQuality = 0
         self.__file = FileSystemHandler()
         self.__util = Utils()
@@ -24,24 +26,30 @@ class VideoDownloader:
         return domain_com.replace(".com", "")
     
     def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
-        print("work in progress")
         self.__defaultVideoQuality = videoQuality
 
     def setTreadPoolSize(self,size:int) -> None:
-        self.__threadPool = min(self.__threadPool,size)
+        self.__threadPool = min(self.MAX_TREAD_SIZE,size)
             
     def __threadRun(
         self, thread: ThreadPoolExecutor, urlList: list, formatType: str
     ) -> None:
         thread.map(self.downloadVideo, urlList, repeat(formatType))
 
+    def cleanHiddenDir(self):
+        for dir in [self.TYPE.VIDEO,self.TYPE.AUDIO]:
+            self.__file.forceDeleteDirectory("."+dir)
+    
     def run(self, *, video: list = [], audio: list = []) -> None:
         if len(video) == 0 and len(audio) == 0:
             return
-        with ThreadPoolExecutor(max_workers=self.__threadPool) as executor:
-            self.__threadRun(executor, video, self.TYPE.VIDEO)
-            self.__threadRun(executor, audio, self.TYPE.AUDIO)
-
+        try :
+            with ThreadPoolExecutor(max_workers=self.__threadPool) as executor:
+                self.__threadRun(executor, video, self.TYPE.VIDEO)
+                self.__threadRun(executor, audio, self.TYPE.AUDIO)
+        finally:
+            self.cleanHiddenDir()
+            
     def downloadVideo(self, url: str, typeFormat: str) -> None:
         domain = self.__getDomain(url)
         if domain == "youtube":
