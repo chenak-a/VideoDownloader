@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import sys
 
 
@@ -33,8 +34,6 @@ class FileSystemHandler:
         if not len(os.listdir(directory)):
             os.rmdir(directory)
 
-    def cleanPath(self, fullPathFileName: str) -> None:
-        removed = self.removeFile(fullPathFileName)
-        if removed:
-            path = re.search(r"^\w*", fullPathFileName)[0]
-            self.removeDirectory(path)
+    def forceDeleteDirectory(self, directory: str) -> None:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)

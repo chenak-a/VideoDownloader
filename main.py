@@ -5,9 +5,9 @@ def main():
     downloader = VideoDownloader()
     video = [
         
-        #"https://www.youtube.com/watch?v=IUWJ8_lkFAA",
-        #"https://www.youtube.com/watch?v=G8h_2bvkHa0",
-        #"https://www.youtube.com/watch?v=F9Zt4IFOvLI",
+        "https://www.youtube.com/watch?v=IUWJ8_lkFAA",
+        "https://www.youtube.com/watch?v=G8h_2bvkHa0",
+        "https://www.youtube.com/watch?v=F9Zt4IFOvLI",
         "https://www.youtube.com/watch?v=AphD9lzWRlE"
     ]
     audio = [
