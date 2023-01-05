@@ -398,6 +398,7 @@ class Youtube(AbsHandler):
         fileType = self._fileType(data["mimeType"])
         fileName = self._Title + "." + fileType
         size = self.__getContentSize(data)
+        sleep(2)
         self._fileSystem.createDirectory(directory)
         file = self._fileSystem.createFile(size, directory, fileName)
         initialIncrement = ceil(size / self.SLICE)
