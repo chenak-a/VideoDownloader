@@ -25,7 +25,7 @@ class VideoDownloader:
     
     def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
         print("work in progress")
-        #self.__defaultVideoQuality = videoQuality
+        self.__defaultVideoQuality = videoQuality
 
     def setTreadPoolSize(self,size:int) -> None:
         self.__threadPool = min(self.__threadPool,size)
