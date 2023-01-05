@@ -546,7 +546,7 @@ class Youtube(AbsHandler):
 
     def download(self, url: str) -> None:
         installing = True
-        while self._try <= self.MAXTRY or installing:
+        while self._try <= self.MAXTRY and installing:
             try:
                 urlResponse = get(url)
                 if urlResponse.ok:
@@ -586,6 +586,7 @@ class Youtube(AbsHandler):
                 print("Youtube made changes to there website")
                 print(traceback.format_exc())
                 break
+            
         if self._try > self.MAXTRY :
             print(
                 "we couldn't download {0} try agin later ".format(
