@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
 from itertools import repeat
 
 from .FileSystemHandler import FileSystemHandler
@@ -9,6 +10,17 @@ from .Utils import Utils
 from .VideoHandler import AbsHandler, Format, Youtube
 
 
+class VideoQuality(Enum):
+    P2160 = 2160
+    P1440 = 1440
+    P1080 = 1080
+    P720 = 720
+    P480 = 360
+    P240 = 240
+    P144 = 144
+    #fast mode this take the video that contains video and audio 
+    ANY = 0
+    
 class VideoDownloader:
     TYPE = Format()
     
@@ -17,7 +29,7 @@ class VideoDownloader:
     def __init__(self):
         self.__downloader: AbsHandler = None
         self.__threadPool: int = self.MAX_TREAD_SIZE
-        self.__defaultVideoQuality = 0
+        self.__defaultVideoQuality = VideoQuality.ANY
         self.__file = FileSystemHandler()
         self.__util = Utils()
 
@@ -25,8 +37,12 @@ class VideoDownloader:
         domain_com = re.search(r"\w*.com", url)[0]
         return domain_com.replace(".com", "")
     
-    def setDefaultVideoQuality(self, videoQuality: int=0) -> None:
-        self.__defaultVideoQuality = videoQuality
+    def setDefaultVideoQuality(self, Quality: VideoQuality) -> None:
+        if Quality.__class__ is VideoQuality :
+            self.__defaultVideoQuality = Quality.value
+            print(self.__defaultVideoQuality)
+        else : 
+            print("use VideoQuality enum instead")
 
     def setTreadPoolSize(self,size:int) -> None:
         self.__threadPool = min(self.MAX_TREAD_SIZE,size)
