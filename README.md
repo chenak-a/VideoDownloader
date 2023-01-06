@@ -19,6 +19,9 @@ pip install -r requirements.txt
 ## :building_construction: Usage
 
 ```python
+VideoQuality
+
+def main():
     downloader = VideoDownloader()
     video = [
         
@@ -29,8 +32,7 @@ pip install -r requirements.txt
     audio = [
         "https://www.youtube.com/watch?v=BYRsQvPOv6o",
         ]
-    
-    downloader.setDefaultVideoQuality(VideoQuality.P144)
+    downloader.setDefaultVideoQuality(VideoQuality.P720)
     downloader.run(video=video, audio=audio)
 
 
