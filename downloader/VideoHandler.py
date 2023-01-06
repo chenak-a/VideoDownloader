@@ -418,6 +418,7 @@ class Youtube(AbsHandler):
                 bar.close()
         except:
             self._fileSystem.removeFile(file)
+            print(traceback.format_exc())
             raise VideoErrorhandler("server err")
         return file
 

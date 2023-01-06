@@ -11,6 +11,7 @@ from .VideoHandler import AbsHandler, Format, Youtube
 
 
 class VideoQuality(Enum):
+    # could be slow, if the video and audio are split into two files it will take time to combine them
     P2160 = 2160
     P1440 = 1440
     P1080 = 1080
@@ -18,7 +19,7 @@ class VideoQuality(Enum):
     P480 = 360
     P240 = 240
     P144 = 144
-    #fast mode this take the video that contains video and audio 
+    #fast mode this take the best video that contain video and audio 
     ANY = 0
     
 class VideoDownloader:
@@ -29,7 +30,7 @@ class VideoDownloader:
     def __init__(self):
         self.__downloader: AbsHandler = None
         self.__threadPool: int = self.MAX_TREAD_SIZE
-        self.__defaultVideoQuality = VideoQuality.ANY
+        self.__defaultVideoQuality = VideoQuality.ANY.value
         self.__file = FileSystemHandler()
         self.__util = Utils()
 
@@ -42,7 +43,7 @@ class VideoDownloader:
             self.__defaultVideoQuality = Quality.value
             print(self.__defaultVideoQuality)
         else : 
-            print("use VideoQuality enum instead")
+            print("use VideoQuality enum instead ex : VideoQuality.P720 ")
 
     def setTreadPoolSize(self,size:int) -> None:
         self.__threadPool = min(self.MAX_TREAD_SIZE,size)

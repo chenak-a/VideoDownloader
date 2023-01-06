@@ -13,7 +13,7 @@ def main():
         "https://www.youtube.com/watch?v=BYRsQvPOv6o",
         ]
     
-    downloader.setDefaultVideoQuality(VideoQuality.P144)
+    downloader.setDefaultVideoQuality(144)
     downloader.run(video=video, audio=audio)
 
 
