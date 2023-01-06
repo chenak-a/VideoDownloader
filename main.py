@@ -1,5 +1,6 @@
-from downloader import VideoDownloader
+from downloader import VideoDownloader, VideoQuality
 
+VideoQuality
 
 def main():
     downloader = VideoDownloader()
@@ -8,11 +9,11 @@ def main():
         "https://www.youtube.com/watch?v=IUWJ8_lkFAA",
         "https://www.youtube.com/watch?v=G8h_2bvkHa0",
         "https://www.youtube.com/watch?v=F9Zt4IFOvLI",
-        "https://www.youtube.com/watch?v=AphD9lzWRlE"
     ]
     audio = [
         "https://www.youtube.com/watch?v=BYRsQvPOv6o",
         ]
+
     downloader.run(video=video, audio=audio)
 
 

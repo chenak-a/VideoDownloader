@@ -391,9 +391,7 @@ class Youtube(AbsHandler):
             start = end + 1
 
     def _saveFile(self, data: str, dir: str = None) -> str:
-        directory = self._type.lower()
-        if dir != None:
-            directory = dir
+        directory = self._type.lower() if dir == None else dir
         fileType = self._fileType(data["mimeType"])
         fileName = self._Title + "." + fileType
         size = self.__getContentSize(data)
@@ -420,6 +418,7 @@ class Youtube(AbsHandler):
                 bar.close()
         except:
             self._fileSystem.removeFile(file)
+            print(traceback.format_exc())
             raise VideoErrorhandler("server err")
         return file
 
