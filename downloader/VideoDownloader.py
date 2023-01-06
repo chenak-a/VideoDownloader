@@ -53,10 +53,10 @@ class VideoDownloader:
     def downloadVideo(self, url: str, typeFormat: str) -> None:
         domain = self.__getDomain(url)
         if domain == "youtube":
-            self.downloader = Youtube(
+            self.__downloader = Youtube(
                 self.__file, self.__util, self.__defaultVideoQuality, typeFormat
             )
         else:
             return
 
-        self.downloader.download(url)
+        self.__downloader.download(url)

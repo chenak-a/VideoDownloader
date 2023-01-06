@@ -13,7 +13,6 @@ from time import sleep
 
 import js2py
 from imageio_ffmpeg import get_ffmpeg_exe
-
 from requests import Response, get, head
 from tqdm import tqdm
 
@@ -26,7 +25,7 @@ class Format:
 
     VIDEO: str = "VIDEO"
     AUDIO: str = "AUDIO"
-
+    
     def isFormat(cls, type: str):
         if (type is cls.AUDIO) or (type is cls.VIDEO):
             return True
