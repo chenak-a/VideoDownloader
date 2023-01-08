@@ -357,7 +357,7 @@ class Youtube(AbsHandler):
                 )
             )
 
-        if not response.ok or int(response.headers["Content-Length"]) == 0:
+        if not response.ok or "Content-Length" not in response.headers  or int(response.headers["Content-Length"]) == 0:
             raise VideoErrorhandler(
                 "response code / {0} couldn't access to this video {1} will try {2}/{3} again ...\r".format(
                     str(response.status_code),
@@ -462,6 +462,7 @@ class Youtube(AbsHandler):
                     str(self.MAX_TREAD_POOL_SIZE),
                     "-cpu-used",
                     str(os.cpu_count()),
+                    '-shortest',
                     videoPath[1:],
                 ],
                 check=True,
