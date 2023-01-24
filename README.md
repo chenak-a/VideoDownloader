@@ -7,7 +7,7 @@
 
 ## :hammer_and_wrench: Installation 
 
-Use python package manager [pip](https://pip.pypa.io/en/stable/) to install requirements.
+Create a [venv](https://docs.python.org/3/library/venv.html) and then install the requirements.
 
 ```bash
 pip install -r requirements.txt
