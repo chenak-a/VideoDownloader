@@ -27,10 +27,8 @@ class Format:
     AUDIO: str = "AUDIO"
     
     def isFormat(cls, type: str):
-        if (type is cls.AUDIO) or (type is cls.VIDEO):
-            return True
-        else:
-            return False
+        return (type is cls.AUDIO) or (type is cls.VIDEO):
+            
 
 
 class AbsHandler(ABC):
